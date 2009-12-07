@@ -43,6 +43,7 @@ var CPActiveRecordIdentifierKey = @"id";
     
     JSObject        _lastSync;
     BOOL            _invalidated;
+    BOOL            shouldFlushRecords;
 }
 
 + (void)initialize
@@ -172,6 +173,29 @@ var CPActiveRecordIdentifierKey = @"id";
     
     if (identifier)
         [records setObject:self forKey:identifier];
+}
+
+// this removes any records in the CPActiveRecordModels Dictionary for the current model
++ (void)flushRecords
+{
+  var empty = [CPDictionary dictionary];
+  [[CPActiveRecord getCPActiveRecordModels] setObject:empty forKey:[self className]];
+}
+
+// This is needed for the flushRecords method in order to get to the CPActiveRecordModels Dictionary
++ (CPDictionary)getCPActiveRecordModels
+{
+  return CPActiveRecordModels;
+}
+
++ (BOOL)shouldFlushRecords
+{
+  return shouldFlushRecords;
+}
+
++ (void)setShouldFlushRecords:(BOOL)boolean
+{
+  shouldFlushRecords = boolean;
 }
 
 @end
@@ -521,6 +545,10 @@ var CPActiveRecordIdentifierKey = @"id";
         aConnection.postTarget._invalidated = NO;
         return [aConnection.postTarget raiseValidationError:data];
     }
+    if (shouldFlushRecords) {
+      [self flushRecords];
+    }
+    [self setShouldFlushRecords:NO];
     
     [CPActiveRecord parseData:data];
 
@@ -591,6 +619,7 @@ var CPActiveRecordIdentifierKey = @"id";
     if (!path)
         return nil;
     
+    [self setShouldFlushRecords:YES];
     [[CPNotificationCenter defaultCenter] postNotificationName:CPActiveRecordCollectionWillLoad object:self];
     
     return [CPURLRequest requestJSONWithURL:path];
@@ -628,6 +657,7 @@ var CPActiveRecordIdentifierKey = @"id";
 - (CPURLRequest)recordWillSave
 {
     var path = identifier ? [self resourcePath] : [[self class] resourcesPath];
+
     if (!path)
         return nil;
     
